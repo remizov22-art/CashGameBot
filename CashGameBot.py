@@ -9,16 +9,9 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 
 from aiohttp import web
-import threading
 
-# Маленький сервер, чтобы Render думал, что это сайт
 async def handle(request):
     return web.Response(text="Bot is running!")
-
-def run_web_server():
-    app = web.Application()
-    app.router.add_get('/', handle)
-    web.run_app(app, host='0.0.0.0', port=10000)
 
 # --- НАСТРОЙКА ---
 BOT_TOKEN = '8912498030:AAHKq4rLQQNG1m8jhu1hEbPRwim-FQXq-Fg'
@@ -857,9 +850,17 @@ async def process_back_to_menu(callback_query: CallbackQuery):
 
 # --- ЗАПУСК БОТА ---
 async def main():
-    # Запускаем веб-сервер в фоновом потоке, чтобы Render не вырубил бота
-    threading.Thread(target=run_web_server, daemon=True).start()
-    # Запускаем бота
+    # Сначала запускаем простой веб-сервер в фоне
+    app = web.Application()
+    app.router.add_get('/', handle)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, host='0.0.0.0', port=10000)
+    await site.start()
+    
+    print("✅ Веб-заглушка запущена на порту 10000. Бот стартует...")
+    
+    # Только после этого запускаем бота
     await dp.start_polling(bot)
 
 if __name__ == '__main__':
