@@ -228,8 +228,8 @@ async def cmd_start(message: types.Message):
         f"💰 **Следующий круг:** Начисляет ежемесячный денежный поток на счет (зарплата).\n\n"
         f"👶 **Прибавление:** Если выпала ячейка «Ребенок», нажмите эту кнопку. Расходы увеличатся (max 3 детей).\n\n"
         f"🏦 **Взять кредит:** Возьмите деньги в долг если нужно.\n\n"
-        f"⚡ **Действие на поле:** Увольнение, благотворительность, безделушки, выплата долгов.\n\n"
-        f"💵 **Пополнить/Снять:** Ручная корректировка наличных (использовать для Увольнение, Благотворительность).\n\n"
+        f"⚡ **Действие на поле:** Увольнение, благотворительность, безделушки, выплата долгов, выплата взятого кредита.\n\n"
+        f"💵 **Пополнить/Снять:** Ручная корректировка наличных.\n\n"
         f"🔄 **Сменить профессию:** Можно изменить карточу профессии.\n\n"
         f"🗑️ **Завершить игру (Сброс):** Завершает игру, сбрасываю прогресс.\n\n"
         f"---\n\n"
@@ -382,25 +382,28 @@ async def start_pay_liability(callback_query: CallbackQuery):
     if p['game_phase'] != "inner":
         await callback_query.answer("Это работает только в Крысиных бегах!", show_alert=True)
         return
-
+        
     kb = []
-    # Список пассивов из карточки
+    # Показываем ТОЛЬКО стандартные долги из карточки
     for key, val in p['liabilities'].items():
         if val > 0:
-            kb.append([types.InlineKeyboardButton(text=f"{key} (-${val})", callback_data=f"pay_{key}")])
-    # Список кредита банка
-    if p['bank_loan'] > 0:
-        kb.append(
-            [types.InlineKeyboardButton(text=f"Кредит банка (-${p['bank_loan']})", callback_data="pay_bank_loan")])
-
+            # Переводим технические названия на человеческий язык
+            display_name = {
+                "mortgage": "Ипотека",
+                "student_loan": "Займ на обучение",
+                "car_loan": "Автокредит",
+                "credit_cards": "Кредитные карты",
+                "purchase_debt": "Долг за покупки"
+            }.get(key, key)
+            kb.append([types.InlineKeyboardButton(text=f"{display_name} (-${val})", callback_data=f"pay_{key}")])
+        
     if not kb:
-        await callback_query.message.edit_text("У тебя нет долгов!", reply_markup=get_inner_keyboard())
+        await callback_query.message.edit_text("У тебя нет стандартных долгов по карточке!", reply_markup=get_inner_keyboard())
         await callback_query.answer()
         return
-
-    kb.append([types.InlineKeyboardButton(text="🔙 Назад", callback_data="profile")])
-    await callback_query.message.edit_text("💸 Какой долг хочешь выплатить?",
-                                           reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+        
+    kb.append([types.InlineKeyboardButton(text="🔙 Назад", callback_data="field_action")])
+    await callback_query.message.edit_text("💸 Какой долг из карточки хочешь выплатить?", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
     await callback_query.answer()
 
 
@@ -645,7 +648,16 @@ async def process_field_action(callback_query: CallbackQuery):
           [types.InlineKeyboardButton(text="🎁 Благотворительность", callback_data="ev_charity")],
           [types.InlineKeyboardButton(text="🛒 Безделушки", callback_data="ev_junk")],
           [types.InlineKeyboardButton(text="💸 Выплатить долги", callback_data="pay_liability")],
-          [types.InlineKeyboardButton(text="🔙 Назад", callback_data="profile")]]
+          ]
+    
+    # Если у игрока есть кредит банка, показываем отдельную кнопку для него
+    if p['bank_loan'] > 0:
+        kb.append([types.InlineKeyboardButton(text="🏦 Выплатить кредит банка", callback_data="pay_bank_loan_menu")])
+    else:
+        kb.append([types.InlineKeyboardButton(text="🏦 Кредит банка (нет долга)", callback_data="profile")])
+        
+    kb.append([types.InlineKeyboardButton(text="🔙 Назад", callback_data="profile")])
+    
     await callback_query.message.edit_text("⚡ Выбери событие на поле:",
                                            reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
     await callback_query.answer()
@@ -883,31 +895,6 @@ async def process_back_to_menu(callback_query: CallbackQuery):
     # Просто показываем профиль (или главное меню)
     await process_profile(callback_query)
 
-# --- БУДИЛЬНИК И ЗАПУСК ---
-import asyncio
-
-async def send_keep_alive():
-    """Стабильный будильник для Render: просто спит, ничего не отправляет"""
-    while True:
-        await asyncio.sleep(40)  # Просыпаемся каждые 40 секунд
-
-async def main():
-    # 1. Запускаем веб-сервер (чтобы Render не ругался)
-    app = web.Application()
-    app.router.add_get('/', handle)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, host='0.0.0.0', port=10000)
-    await site.start()
-    
-    # 2. Запускаем будильник в фоне (он будет тихо тикать 24/7)
-    asyncio.create_task(send_keep_alive())
-    
-    print("✅ Веб-заглушка и будильник запущены. Бот стартует...")
-    
-    # 3. Запускаем самого бота
-    await dp.start_polling(bot)
-
 # --- СБРОС ИГРЫ ---
 @dp.callback_query(lambda c: c.data == "reset_game")
 async def process_reset_game(callback_query: CallbackQuery):
@@ -936,7 +923,77 @@ async def process_reset_confirm(callback_query: CallbackQuery):
         parse_mode="Markdown"
     )
     await callback_query.answer()
+
+# --- ВЫПЛАТА КРЕДИТА БАНКА (ОТДЕЛЬНАЯ КНОПКА) ---
+@dp.callback_query(lambda c: c.data == "pay_bank_loan_menu")
+async def start_pay_bank_loan(callback_query: CallbackQuery, state: FSMContext):
+    user_id = callback_query.from_user.id
+    p = get_player(user_id)
     
+    if p['bank_loan'] <= 0:
+        await callback_query.answer("У тебя нет долга перед банком!", show_alert=True)
+        return
+        
+    await callback_query.message.edit_text(f"🏦 Твой долг банку составляет **${p['bank_loan']}**.\n\nВведи сумму, которую хочешь погасить прямо сейчас:")
+    await state.set_state(CashflowStates.w_sub_cash)  # Переиспользуем состояние для ввода суммы
+    await state.update_data(pay_type="bank_loan")
+    await callback_query.answer()
+
+# Обработчик ввода суммы (переиспользуем, он уже есть в коде, но проверяем, чтобы он реагировал на наш новый тип)
+@dp.message(CashflowStates.w_sub_cash)
+async def process_pay_bank_loan_amount(message: types.Message, state: FSMContext):
+    if not message.text.isdigit():
+        await message.answer("❌ Введите число.")
+        return
+    
+    data = await state.get_data()
+    if data.get("pay_type") == "bank_loan":
+        amount = int(message.text)
+        user_id = message.from_user.id
+        p = get_player(user_id)
+        
+        if amount <= 0:
+            await message.answer("❌ Введите сумму больше 0.")
+            return
+        if amount > p['cash']:
+            await message.answer(f"❌ Не хватает наличных! У тебя ${p['cash']}.")
+            return
+        # Ограничиваем сумму, чтобы не уйти в минус по кредиту
+        if amount > p['bank_loan']:
+            amount = p['bank_loan']
+            
+        p['cash'] -= amount
+        p['bank_loan'] -= amount
+        update_player(user_id, p)
+        
+        await message.answer(f"✅ Кредит банку погашен на **${amount}**!\nОстаток долга: **${p['bank_loan']}**.\nПроценты пересчитаны автоматически.", parse_mode="Markdown", reply_markup=get_inner_keyboard())
+        await state.clear()
+
+# --- БУДИЛЬНИК И ЗАПУСК ---
+import asyncio
+
+async def send_keep_alive():
+    """Стабильный будильник для Render: просто спит, ничего не отправляет"""
+    while True:
+        await asyncio.sleep(40)  # Просыпаемся каждые 40 секунд
+
+async def main():
+    # 1. Запускаем веб-сервер (чтобы Render не ругался)
+    app = web.Application()
+    app.router.add_get('/', handle)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, host='0.0.0.0', port=10000)
+    await site.start()
+    
+    # 2. Запускаем будильник в фоне (он будет тихо тикать 24/7)
+    asyncio.create_task(send_keep_alive())
+    
+    print("✅ Веб-заглушка и будильник запущены. Бот стартует...")
+    
+    # 3. Запускаем самого бота
+    await dp.start_polling(bot)
+
 if __name__ == '__main__':
     import asyncio
     asyncio.run(main())
