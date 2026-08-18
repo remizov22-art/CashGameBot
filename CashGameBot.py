@@ -162,7 +162,6 @@ class CashflowStates(StatesGroup):
 
     w_add_cash = State()
     w_sub_cash = State()
-    w_pay_bank_loan = State()
 
     w_event_fire = State()
     w_event_charity = State()
@@ -385,7 +384,7 @@ async def start_pay_liability(callback_query: CallbackQuery):
         return
         
     kb = []
-    # Показываем ТОЛЬКО стандартные долги из карточки
+    # Список пассивов из карточки
     for key, val in p['liabilities'].items():
         if val > 0:
             # Переводим технические названия на человеческий язык
@@ -398,13 +397,17 @@ async def start_pay_liability(callback_query: CallbackQuery):
             }.get(key, key)
             kb.append([types.InlineKeyboardButton(text=f"{display_name} (-${val})", callback_data=f"pay_{key}")])
         
+    # Добавляем кредит банка в общий список, если он есть
+    if p['bank_loan'] > 0:
+        kb.append([types.InlineKeyboardButton(text=f"Кредит банка (-${p['bank_loan']})", callback_data="pay_bank_loan")])
+        
     if not kb:
-        await callback_query.message.edit_text("У тебя нет стандартных долгов по карточке!", reply_markup=get_inner_keyboard())
+        await callback_query.message.edit_text("У тебя нет долгов!", reply_markup=get_inner_keyboard())
         await callback_query.answer()
         return
         
     kb.append([types.InlineKeyboardButton(text="🔙 Назад", callback_data="field_action")])
-    await callback_query.message.edit_text("💸 Какой долг из карточки хочешь выплатить?", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+    await callback_query.message.edit_text("💸 Какой долг хочешь выплатить?", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
     await callback_query.answer()
 
 
@@ -630,22 +633,15 @@ async def process_a_qty(message: types.Message, state: FSMContext):
 @dp.callback_query(lambda c: c.data == "field_action")
 async def process_field_action(callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
-    p = get_player(user_id)  # <--- ВОТ ЭТА СТРОЧКА БЫЛА ПРОПУЩЕНА! ДОБАВЬТЕ ЕЁ!
+    p = get_player(user_id)
     
     kb = [
         [types.InlineKeyboardButton(text="📉 Увольнение", callback_data="ev_fire")],
         [types.InlineKeyboardButton(text="🎁 Благотворительность", callback_data="ev_charity")],
         [types.InlineKeyboardButton(text="🛒 Безделушки", callback_data="ev_junk")],
-        [types.InlineKeyboardButton(text="💸 Выплатить долги (Ипотека, Авто...)", callback_data="pay_liability")],
+        [types.InlineKeyboardButton(text="💸 Выплатить долги (Ипотека, Авто, Кредит...)", callback_data="pay_liability")],
+        [types.InlineKeyboardButton(text="🔙 Назад", callback_data="profile")]
     ]
-    
-    # Если у игрока есть кредит банка, показываем отдельную кнопку для него
-    if p['bank_loan'] > 0:
-        kb.append([types.InlineKeyboardButton(text="🏦 Выплатить кредит банка", callback_data="pay_bank_loan_menu")])
-    else:
-        kb.append([types.InlineKeyboardButton(text="🏦 Кредит банка (нет долга)", callback_data="profile")])
-        
-    kb.append([types.InlineKeyboardButton(text="🔙 Назад", callback_data="profile")])
     
     await callback_query.message.edit_text("⚡ Выбери событие на поле:", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
     await callback_query.answer()
@@ -912,50 +908,6 @@ async def process_reset_confirm(callback_query: CallbackQuery):
     )
     await callback_query.answer()
 
-# --- ВЫПЛАТА КРЕДИТА БАНКА (ОТДЕЛЬНАЯ КНОПКА) ---
-@dp.callback_query(lambda c: c.data == "pay_bank_loan_menu")
-async def start_pay_bank_loan(callback_query: CallbackQuery, state: FSMContext):
-    user_id = callback_query.from_user.id
-    p = get_player(user_id)
-    
-    if p['bank_loan'] <= 0:
-        await callback_query.answer("У тебя нет долга перед банком!", show_alert=True)
-        return
-        
-    await callback_query.message.edit_text(f"🏦 Твой долг банку составляет **${p['bank_loan']}**.\n\nВведи сумму, которую хочешь погасить прямо сейчас:")
-    await state.set_state(CashflowStates.w_pay_bank_loan)  # Переиспользуем состояние для ввода суммы
-    await state.update_data(pay_type="bank_loan")
-    await callback_query.answer()
-
-# Обработчик ввода суммы (переиспользуем, он уже есть в коде, но проверяем, чтобы он реагировал на наш новый тип)
-@dp.message(CashflowStates.w_pay_bank_loan)
-async def process_pay_bank_loan_amount(message: types.Message, state: FSMContext):
-    if not message.text.isdigit():
-        await message.answer("❌ Введите число.")
-        return
-    
-    data = await state.get_data()
-    if data.get("pay_type") == "bank_loan":
-        amount = int(message.text)
-        user_id = message.from_user.id
-        p = get_player(user_id)
-        
-        if amount <= 0:
-            await message.answer("❌ Введите сумму больше 0.")
-            return
-        if amount > p['cash']:
-            await message.answer(f"❌ Не хватает наличных! У тебя ${p['cash']}.")
-            return
-        # Ограничиваем сумму, чтобы не уйти в минус по кредиту
-        if amount > p['bank_loan']:
-            amount = p['bank_loan']
-            
-        p['cash'] -= amount
-        p['bank_loan'] -= amount
-        update_player(user_id, p)
-        
-        await message.answer(f"✅ Кредит банку погашен на **${amount}**!\nОстаток долга: **${p['bank_loan']}**.\nПроценты пересчитаны автоматически.", parse_mode="Markdown", reply_markup=get_inner_keyboard())
-        await state.clear()
 
 # --- БУДИЛЬНИК И ЗАПУСК ---
 import asyncio
