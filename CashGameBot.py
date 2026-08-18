@@ -181,7 +181,7 @@ def get_inner_keyboard():
         [types.InlineKeyboardButton(text="🏦 Взять кредит", callback_data="take_loan")],
         [types.InlineKeyboardButton(text="⚡ Действие на поле", callback_data="field_action")],
         [types.InlineKeyboardButton(text="💵 Пополнить/Снять", callback_data="adjust_cash")],
-        [types.InlineKeyboardButton(text="🔄 Сменить профессию", callback_data="choose_profession")]
+        [types.InlineKeyboardButton(text="🔄 Сменить профессию", callback_data="choose_profession")],
         [types.InlineKeyboardButton(text="🗑️ Завершить игру (Сброс)", callback_data="reset_game")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=kb)
@@ -193,7 +193,7 @@ def get_outer_keyboard():
         [types.InlineKeyboardButton(text="📦 Мои активы", callback_data="view_assets")],
         [types.InlineKeyboardButton(text="💰 Реализовать бизнес", callback_data="realize_business")],
         [types.InlineKeyboardButton(text="💼 Купить бизнес (Внешний)", callback_data="buy_outer_asset")],
-        [types.InlineKeyboardButton(text="🏁 Выход из игры", callback_data="exit_game")]
+        [types.InlineKeyboardButton(text="🏁 Выход из игры", callback_data="exit_game")],
         [types.InlineKeyboardButton(text="🗑️ Завершить игру (Сброс)", callback_data="reset_game")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=kb)
