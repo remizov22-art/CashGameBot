@@ -644,11 +644,15 @@ async def process_a_qty(message: types.Message, state: FSMContext):
 # --- ДЕЙСТВИЯ НА ПОЛЕ ---
 @dp.callback_query(lambda c: c.data == "field_action")
 async def process_field_action(callback_query: CallbackQuery):
-    kb = [[types.InlineKeyboardButton(text="📉 Увольнение", callback_data="ev_fire")],
-          [types.InlineKeyboardButton(text="🎁 Благотворительность", callback_data="ev_charity")],
-          [types.InlineKeyboardButton(text="🛒 Безделушки", callback_data="ev_junk")],
-          [types.InlineKeyboardButton(text="💸 Выплатить долги", callback_data="pay_liability")],
-          ]
+    user_id = callback_query.from_user.id
+    p = get_player(user_id)  # <--- ВОТ ЭТА СТРОЧКА БЫЛА ПРОПУЩЕНА! ДОБАВЬТЕ ЕЁ!
+    
+    kb = [
+        [types.InlineKeyboardButton(text="📉 Увольнение", callback_data="ev_fire")],
+        [types.InlineKeyboardButton(text="🎁 Благотворительность", callback_data="ev_charity")],
+        [types.InlineKeyboardButton(text="🛒 Безделушки", callback_data="ev_junk")],
+        [types.InlineKeyboardButton(text="💸 Выплатить долги (Ипотека, Авто...)", callback_data="pay_liability")],
+    ]
     
     # Если у игрока есть кредит банка, показываем отдельную кнопку для него
     if p['bank_loan'] > 0:
