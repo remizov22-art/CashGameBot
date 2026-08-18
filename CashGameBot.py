@@ -658,8 +658,7 @@ async def process_field_action(callback_query: CallbackQuery):
         
     kb.append([types.InlineKeyboardButton(text="🔙 Назад", callback_data="profile")])
     
-    await callback_query.message.edit_text("⚡ Выбери событие на поле:",
-                                           reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+    await callback_query.message.edit_text("⚡ Выбери событие на поле:", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
     await callback_query.answer()
 
 
