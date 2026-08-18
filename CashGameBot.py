@@ -162,6 +162,7 @@ class CashflowStates(StatesGroup):
 
     w_add_cash = State()
     w_sub_cash = State()
+    w_pay_bank_loan = State()
 
     w_event_fire = State()
     w_event_charity = State()
@@ -938,12 +939,12 @@ async def start_pay_bank_loan(callback_query: CallbackQuery, state: FSMContext):
         return
         
     await callback_query.message.edit_text(f"🏦 Твой долг банку составляет **${p['bank_loan']}**.\n\nВведи сумму, которую хочешь погасить прямо сейчас:")
-    await state.set_state(CashflowStates.w_sub_cash)  # Переиспользуем состояние для ввода суммы
+    await state.set_state(CashflowStates.w_pay_bank_loan)  # Переиспользуем состояние для ввода суммы
     await state.update_data(pay_type="bank_loan")
     await callback_query.answer()
 
 # Обработчик ввода суммы (переиспользуем, он уже есть в коде, но проверяем, чтобы он реагировал на наш новый тип)
-@dp.message(CashflowStates.w_sub_cash)
+@dp.message(CashflowStates.w_pay_bank_loan)
 async def process_pay_bank_loan_amount(message: types.Message, state: FSMContext):
     if not message.text.isdigit():
         await message.answer("❌ Введите число.")
