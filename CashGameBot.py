@@ -908,17 +908,23 @@ async def process_reset_confirm(callback_query: CallbackQuery):
     )
     await callback_query.answer()
 
-
-# --- БУДИЛЬНИК И ЗАПУСК ---
+# --- СТАБИЛЬНЫЙ БУДИЛЬНИК ДЛЯ RENDER (Без asyncio.sleep, работающего в фоне) ---
 import asyncio
+import aiohttp
 
 async def send_keep_alive():
-    """Стабильный будильник для Render: просто спит, ничего не отправляет"""
+    """Пингует веб-заглушку каждые 40 секунд, чтобы Render не усыпил бота"""
     while True:
-        await asyncio.sleep(40)  # Просыпаемся каждые 40 секунд
+        try:
+            # Отправляем запрос к САМОМУ СЕБЕ (на localhost)
+            async with aiohttp.ClientSession() as session:
+                await session.get('http://127.0.0.1:10000/')
+        except:
+            pass  # Игнорируем ошибки, если заглушка еще не запустилась
+        await asyncio.sleep(40)
 
 async def main():
-    # 1. Запускаем веб-сервер (чтобы Render не ругался)
+    # 1. Запускаем веб-сервер (заглушка для Render)
     app = web.Application()
     app.router.add_get('/', handle)
     runner = web.AppRunner(app)
@@ -926,13 +932,14 @@ async def main():
     site = web.TCPSite(runner, host='0.0.0.0', port=10000)
     await site.start()
     
-    # 2. Запускаем будильник в фоне (он будет тихо тикать 24/7)
+    print("✅ Веб-заглушка запущена.")
+    
+    # 2. Запускаем будильник в фоне
     asyncio.create_task(send_keep_alive())
     
-    print("✅ Веб-заглушка и будильник запущены. Бот стартует...")
-    
-    # 3. Запускаем самого бота
+    # 3. Запускаем бота
     await dp.start_polling(bot)
+
 
 if __name__ == '__main__':
     import asyncio
