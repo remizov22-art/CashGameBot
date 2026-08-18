@@ -182,6 +182,7 @@ def get_inner_keyboard():
         [types.InlineKeyboardButton(text="⚡ Действие на поле", callback_data="field_action")],
         [types.InlineKeyboardButton(text="💵 Пополнить/Снять", callback_data="adjust_cash")],
         [types.InlineKeyboardButton(text="🔄 Сменить профессию", callback_data="choose_profession")]
+        [types.InlineKeyboardButton(text="🗑️ Завершить игру (Сброс)", callback_data="reset_game")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=kb)
 
@@ -193,6 +194,7 @@ def get_outer_keyboard():
         [types.InlineKeyboardButton(text="💰 Реализовать бизнес", callback_data="realize_business")],
         [types.InlineKeyboardButton(text="💼 Купить бизнес (Внешний)", callback_data="buy_outer_asset")],
         [types.InlineKeyboardButton(text="🏁 Выход из игры", callback_data="exit_game")]
+        [types.InlineKeyboardButton(text="🗑️ Завершить игру (Сброс)", callback_data="reset_game")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=kb)
 
@@ -905,6 +907,35 @@ async def main():
     # 3. Запускаем самого бота
     await dp.start_polling(bot)
 
+# --- СБРОС ИГРЫ ---
+@dp.callback_query(lambda c: c.data == "reset_game")
+async def process_reset_game(callback_query: CallbackQuery):
+    # Спрашиваем подтверждение, чтобы не стереть всё случайно
+    kb = [
+        [types.InlineKeyboardButton(text="✅ Да, сбросить всё!", callback_data="reset_confirm")],
+        [types.InlineKeyboardButton(text="❌ Нет, отмена", callback_data="profile")]
+    ]
+    await callback_query.message.edit_text(
+        "⚠️ **Внимание! Ты уверен, что хочешь завершить игру и стереть весь прогресс?**\n"
+        "Это действие удалит данные ВСЕХ игроков (баланс, активы, профессии).",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
+    )
+    await callback_query.answer()
+
+@dp.callback_query(lambda c: c.data == "reset_confirm")
+async def process_reset_confirm(callback_query: CallbackQuery):
+    # Полностью очищаем файл данных
+    with open(DATA_FILE, 'w', encoding='utf-8') as f:
+        f.write('{}')  # Записываем пустой JSON
+    
+    await callback_query.message.edit_text(
+        "🗑️ **Игра завершена! Все данные стерты.**\n"
+        "Теперь вы можете нажать /start, чтобы начать новую игру с нуля.",
+        parse_mode="Markdown"
+    )
+    await callback_query.answer()
+    
 if __name__ == '__main__':
     import asyncio
     asyncio.run(main())
