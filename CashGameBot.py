@@ -210,14 +210,38 @@ async def cmd_start(message: types.Message):
     user_id = message.from_user.id
     p = get_player(user_id)
     if p['profession'] is None:
-        await message.answer(f"👋 Привет, {message.from_user.first_name}!\nДавай выберем профессию:",
-                             reply_markup=get_profession_keyboard())
+        # ВСТАВИЛИ НОВЫЙ ТЕКСТ ИНСТРУКЦИИ
+        await message.answer(
+            f"🎲 **Добро пожаловать в помощник игры Cashflow (Крысиные бега)!**\n\n"
+            f"Этот бот заменит вам бумажные бланки и калькулятор.\n"
+            f"Все расчеты происходят автоматически.\n\n"
+            f"📌 **Как начать игру:**\n"
+            f"1. Получите случайную карточку профессии из колоды.\n"
+            f"2. Выберите её в боте нажатием кнопки.\n"
+            f"3. Бот загрузит ваш стартовый бюджет, долги и зарплату.\n\n"
+            f"---\n\n"
+            f"🕹️ **Управление ботом:**\n\n"
+            f"📊 **Мой профиль:** Показывает ваш баланс, денежный поток, расходы, долги и условия выхода.\n\n"
+            f"📦 **Мои активы:** Просмотр купленных активов. Здесь же можно **купить новый актив** или **продать** имеющийся.\n\n"
+            f"💰 **Следующий круг:** Начисляет ежемесячный денежный поток на счет.\n\n"
+            f"👶 **Прибавление:** Если выпала ячейка «Ребенок», нажмите эту кнопку. Расходы увеличатся (до 3 детей).\n\n"
+            f"🏦 **Взять кредит:** Возьмите деньги в долг. Автоматический расчет 10% ежемесячных процентов.\n\n"
+            f"⚡ **Действие на поле:** Увольнение, благотворительность, безделушки, выплата долгов.\n\n"
+            f"💵 **Пополнить/Снять:** Ручная корректировка наличных.\n\n"
+            f"🔄 **Сменить профессию:** Выбор новой карточки (например, для перехода на Внешний круг).\n\n"
+            f"---\n\n"
+            f"🎯 **Цель игры:** Пассивный доход > Расходы, и все долги погашены.\n\n"
+            f"🍀 **Удачи и финансового роста!**",
+            parse_mode="Markdown",
+            reply_markup=get_profession_keyboard()
+        )
     else:
         ti, te, cf, pi, bi = calculate_finances(p)
         await message.answer(
             f"👋 С возвращением!\nТы играешь за **{p['profession']}**.\n💰 Баланс: **${p['cash']}**\n📊 Денежный поток: **${cf}**",
             parse_mode="Markdown",
-            reply_markup=get_outer_keyboard() if p['game_phase'] == "outer" else get_inner_keyboard())
+            reply_markup=get_outer_keyboard() if p['game_phase']=="outer" else get_inner_keyboard()
+        )
 
 
 @dp.callback_query(lambda c: c.data.startswith("prof_"))
@@ -848,9 +872,16 @@ async def process_back_to_menu(callback_query: CallbackQuery):
     # Просто показываем профиль (или главное меню)
     await process_profile(callback_query)
 
-# --- ЗАПУСК БОТА ---
+# --- БУДИЛЬНИК И ЗАПУСК ---
+import asyncio
+
+async def send_keep_alive():
+    """Стабильный будильник для Render: просто спит, ничего не отправляет"""
+    while True:
+        await asyncio.sleep(40)  # Просыпаемся каждые 40 секунд
+
 async def main():
-    # Сначала запускаем простой веб-сервер в фоне
+    # 1. Запускаем веб-сервер (чтобы Render не ругался)
     app = web.Application()
     app.router.add_get('/', handle)
     runner = web.AppRunner(app)
@@ -858,9 +889,12 @@ async def main():
     site = web.TCPSite(runner, host='0.0.0.0', port=10000)
     await site.start()
     
-    print("✅ Веб-заглушка запущена на порту 10000. Бот стартует...")
+    # 2. Запускаем будильник в фоне (он будет тихо тикать 24/7)
+    asyncio.create_task(send_keep_alive())
     
-    # Только после этого запускаем бота
+    print("✅ Веб-заглушка и будильник запущены. Бот стартует...")
+    
+    # 3. Запускаем самого бота
     await dp.start_polling(bot)
 
 if __name__ == '__main__':
