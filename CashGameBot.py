@@ -525,22 +525,6 @@ async def start_sell_asset(callback_query: CallbackQuery, state: FSMContext):
     await callback_query.answer()
 
 
-@dp.callback_query(lambda c: c.data == "sell_asset_menu")
-async def start_sell_asset(callback_query: CallbackQuery, state: FSMContext):
-    user_id = callback_query.from_user.id
-    p = get_player(user_id)
-    if not p['assets']['investments']:
-        await callback_query.answer("Активов для продажи нет.", show_alert=True)
-        return
-    kb = []
-    for i, inv in enumerate(p['assets']['investments']):
-        kb.append([types.InlineKeyboardButton(text=f"{inv['name']} ({inv['qty']} шт.)", callback_data=f"sell_{i}")])
-    kb.append([types.InlineKeyboardButton(text="🔙 Назад", callback_data="view_assets")])
-    await callback_query.message.edit_text("📉 Какой актив хочешь продать?",
-                                           reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
-    await callback_query.answer()
-
-
 @dp.callback_query(lambda c: c.data.startswith("sell_"))
 async def process_sell_asset(callback_query: CallbackQuery, state: FSMContext):
     idx = int(callback_query.data.replace("sell_", ""))
